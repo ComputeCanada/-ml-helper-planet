@@ -47,7 +47,7 @@ def load_data():
 
     print('done')
     assert len(Y) == len(X)
-    return X, Y
+    return X, Y, labeldict
 
 
 if __name__ == '__main__':

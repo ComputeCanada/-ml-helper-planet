@@ -3,21 +3,33 @@ import glob
 import gzip
 import io
 import os.path as osp
+import pickle
 import tarfile as tar
 
 import numpy as np
 from PIL import Image
 
 
-def load_data():
+def load_train():
+    """
+    The training data is a split tar archive with png images.
+
+    Don't ask...
+    """
 
     filedir = osp.dirname(__file__)
-    im_gz_bytes = b""
+    pickle_cache_fn = osp.expanduser("~/planet_train_cache.p")
+
+    if osp.exists(pickle_cache_fn):
+        print("found cached files, loading them.")
+        with open(pickle_cache_fn, "rb") as f:
+            return pickle.load(f)
 
     print("assembling data archives...")
-    for im_gz_fn in sorted(glob.glob(osp.join(filedir, "data/*.part"))):
+    im_gz_bytes = b""
+    for im_gz_fn in sorted(glob.glob(osp.join(filedir, "data/*train*.part"))):
         with open(im_gz_fn, "rb") as f:
-            im_gz_bytes = im_gz_bytes + f.read()
+            im_gz_bytes += f.read()
 
     tarfile = tar.open(mode="r:*", fileobj=io.BytesIO(im_gz_bytes))
 
@@ -48,8 +60,43 @@ def load_data():
 
     print("done")
     assert len(Y) == len(X)
-    return X, Y, unique_labels
+
+    out = X, Y, unique_labels
+    with open(pickle_cache_fn, "wb") as f:
+        pickle.dump(out, f)
+    return out
+
+
+# for compatibility
+load_data = load_train
+
+
+def load_test():
+    """
+    The test data is a much more sensible split npz array.
+    """
+    filedir = osp.dirname(__file__)
+    npz_cache_fn = osp.expanduser("~/planet_test_cache.npz")
+
+    if osp.isfile(npz_cache_fn):
+        print("found cached file, loading it.")
+        return np.load(npz_cache_fn)["X_test"]
+
+    npz_gz_bytes = b""
+
+    print("assembling data archives...")
+    for im_gz_fn in sorted(glob.glob(osp.join(filedir, "data/*test*.part"))):
+        with open(im_gz_fn, "rb") as f:
+            npz_gz_bytes += f.read()
+
+    X_test = np.load(io.BytesIO(gzip.decompress(npz_gz_bytes)))["arr_0"]
+    np.savez(npz_cache_fn, X_test=X_test)
+
+    return X_test
 
 
 if __name__ == "__main__":
     load_data()
+    X = load_test()
+    print(X.shape)
+    print(X[0])
